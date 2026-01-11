@@ -3,6 +3,7 @@ package com.LearningTesting.TestingApp.services.impl;
 import com.LearningTesting.TestingApp.TestContainerConfiguration;
 import com.LearningTesting.TestingApp.dto.EmployeeDto;
 import com.LearningTesting.TestingApp.entities.Employee;
+import com.LearningTesting.TestingApp.exceptions.ResourceNotFoundException;
 import com.LearningTesting.TestingApp.repositories.EmployeeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -94,6 +96,19 @@ class EmployeeServiceImplTest {
         //verify(employeeRepository, atLeast(2)).findById(id);
     }
 
+    @Test
+    void testGetEmployeeById_whenEmployeeIsNotPresent_thenThrowException(){
+        //arrange
+        when(employeeRepository.findById(anyLong())).thenReturn(Optional.empty());
+
+        //act and assert together
+        assertThatThrownBy(()->employeeService.getEmployeeById(1L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Employee with id not found 1");
+        verify(employeeRepository).findById(1L);
+        //assert
+    }
+
 
     @Test
     void testCreateNewEmployee_When_Valid_Employee_Then_Create_New_Employee(){
@@ -119,4 +134,59 @@ class EmployeeServiceImplTest {
         Employee captureEmployee = employeeArgumentCaptor.getValue();
         assertThat(captureEmployee.getEmail()).isEqualTo(mockEmployee.getEmail());
     }
+
+    @Test
+    void testCreateNewEmployee_whenAttemptingToCreateEmployeeWithExistingEmail_thenThrowException(){
+        //arrange
+        when(employeeRepository.findByEmail(mockEmployeeDto.getEmail())).thenReturn(List.of(mockEmployee));
+
+        //act and assert
+        assertThatThrownBy(()->employeeService.createEmployee(mockEmployeeDto))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Employee already exists with email: " + mockEmployee.getEmail());
+
+        verify(employeeRepository).findByEmail(mockEmployeeDto.getEmail());
+        verify(employeeRepository, never()).save(any());
+
+    }
+
+    @Test
+    void testUpdateEmployee_whenEmployeeDoesNotExist_thenThrowException(){
+        when(employeeRepository.findById(1L)).thenReturn(Optional.empty());
+        assertThatThrownBy(()->employeeService.updateEmployee(1L, mockEmployeeDto))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Employee not found with id: 1");
+    }
+
+    @Test
+    void testUpdateEmployee_whenAttempting_toUpdateEmail_thenThrowException(){
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(mockEmployee));
+        mockEmployeeDto.setName("Random");
+        mockEmployeeDto.setEmail("abc@gmail.com");
+
+        assertThatThrownBy(()->employeeService.updateEmployee(mockEmployeeDto.getId(), mockEmployeeDto))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("The email of the employee cannot be updated");
+    }
+
+    @Test
+    void testUpdateEmployee_whenValidEmployee_thenUpdateEmployee(){
+        when(employeeRepository.findById(mockEmployeeDto.getId())).thenReturn(Optional.of(mockEmployee));
+        mockEmployeeDto.setName("Random name");
+        mockEmployeeDto.setSalary(199L);
+
+        Employee newEmployee = modelMapper.map(mockEmployeeDto, Employee.class);
+        when(employeeRepository.save(any(Employee.class))).thenReturn(newEmployee);
+
+
+        //act
+        EmployeeDto updateEmployeeDto = employeeService.updateEmployee(mockEmployeeDto.getId(), mockEmployeeDto);
+
+        assertThat(updateEmployeeDto).isEqualTo(mockEmployeeDto);
+        verify(employeeRepository).findById(1L);
+        verify(employeeRepository).save(any());
+
+    }
+
+
 }
