@@ -29,6 +29,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         log.info("Fetching employee with id: {}", id);
         Employee employee = employeeRepository.findById(id).orElseThrow(()->
                 new ResourceNotFoundException("Employee with id not found " + id));
+        log.info("Successfully fetched the employee with id: {}", id);
         return modelMapper.map(employee, EmployeeDto.class);
     }
 
